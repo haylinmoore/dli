@@ -15,6 +15,9 @@ var rootCmd = &cobra.Command{
 	Use:   "dli",
 	Short: "DNS CLI tool for managing DNS records across multiple providers",
 	Long:  "A CLI tool that allows you to manage DNS records across various DNS providers using environment variables for authentication.",
+	CompletionOptions: cobra.CompletionOptions{
+		DisableDefaultCmd: true,
+	},
 }
 
 func Execute() {

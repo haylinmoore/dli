@@ -8,7 +8,6 @@ Usage:
 
 Available Commands:
   append      Append a DNS record
-  completion  Generate the autocompletion script for the specified shell
   delete      Delete a DNS record
   help        Help about any command
   list        List DNS records
