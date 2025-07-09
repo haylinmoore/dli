@@ -12,31 +12,27 @@ import (
 // SVCBRecordParser handles SVCB/HTTPS record parsing
 type SVCBRecordParser struct{}
 
-func (p SVCBRecordParser) ParseForOperation(operation string, args []string) (libdns.RR, error) {
-	if operation == "delete" {
-		// Delete: <name> [data]
-		if len(args) < 1 || len(args) > 2 {
-			return libdns.RR{}, fmt.Errorf("delete SVCB requires 1-2 arguments: <name> [data]")
-		}
+func (p SVCBRecordParser) Parse(args []string) (libdns.RR, error) {
+	if len(args) < 1 || len(args) > 4 {
+		return libdns.RR{}, fmt.Errorf("SVCB record requires 1-4 arguments: <scheme> <name> <priority> <target> or <name> [data]")
+	}
 
-		name := args[0]
-		var data string
-
-		if len(args) == 2 {
-			data = args[1]
-		}
-
+	if len(args) == 1 {
+		// Just name - for deletion
 		return libdns.RR{
 			Type: "SVCB", // Default to SVCB for delete
-			Name: name,
-			Data: data,
+			Name: args[0],
+			Data: "",
 		}, nil
-	} else {
-		// Set/Append: <scheme> <name> <priority> <target>
-		if len(args) != 4 {
-			return libdns.RR{}, fmt.Errorf("%s SVCB requires 4 arguments: <scheme> <name> <priority> <target>", operation)
-		}
-
+	} else if len(args) == 2 {
+		// Name and data - for specific deletion
+		return libdns.RR{
+			Type: "SVCB", // Default to SVCB for delete
+			Name: args[0],
+			Data: args[1],
+		}, nil
+	} else if len(args) == 4 {
+		// Full record: scheme, name, priority, target
 		scheme := args[0]
 		name := args[1]
 		priorityStr := args[2]
@@ -80,15 +76,13 @@ func (p SVCBRecordParser) ParseForOperation(operation string, args []string) (li
 			Data: data,
 			TTL:  time.Duration(300) * time.Second,
 		}, nil
+	} else {
+		return libdns.RR{}, fmt.Errorf("SVCB record requires either 1-2 arguments (for deletion) or 4 arguments (for creation): <scheme> <name> <priority> <target>")
 	}
 }
 
 func (p SVCBRecordParser) GetUsage() string {
 	return "svcb <scheme> <name> <priority> <target>"
-}
-
-func (p SVCBRecordParser) GetDeleteUsage() string {
-	return "svcb <name> [data]"
 }
 
 func (p SVCBRecordParser) GetShortDescription() string {

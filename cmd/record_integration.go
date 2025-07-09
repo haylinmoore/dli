@@ -23,7 +23,7 @@ func init() {
 // executeRecordOperationFromParser executes a record operation using a parser
 func executeRecordOperationFromParser(operation rr_types.RecordOperation, parser rr_types.RecordParser, args []string) {
 	// Parse the record using the parser
-	record, err := parser.ParseForOperation(string(operation), args)
+	record, err := parser.Parse(args)
 	if err != nil {
 		OutputError("Failed to parse record", err)
 		return
@@ -41,7 +41,14 @@ func executeRecordOperationFromParser(operation rr_types.RecordOperation, parser
 	case rr_types.OperationAppend:
 		executeRecordAppendWithRR(record)
 	case rr_types.OperationDelete:
-		executeRecordDeleteWithRR(record)
+		// For delete operations, check if data is empty to determine delete type
+		if record.Data == "" {
+			// Generic delete - delete all records of this type and name
+			executeRecordDelete(record.Type, record.Name, "")
+		} else {
+			// Specific delete - delete the exact record
+			executeRecordDelete(record.Type, record.Name, record.Data)
+		}
 	}
 }
 
@@ -53,9 +60,4 @@ func executeRecordSetWithRR(record libdns.RR) {
 // executeRecordAppendWithRR executes an append operation with a pre-parsed RR
 func executeRecordAppendWithRR(record libdns.RR) {
 	executeRecordAppend(record.Type, record.Name, record.Data)
-}
-
-// executeRecordDeleteWithRR executes a delete operation with a pre-parsed RR
-func executeRecordDeleteWithRR(record libdns.RR) {
-	executeRecordDelete(record.Type, record.Name, record.Data)
 }

@@ -12,31 +12,27 @@ import (
 // SRVRecordParser handles SRV record parsing
 type SRVRecordParser struct{}
 
-func (p SRVRecordParser) ParseForOperation(operation string, args []string) (libdns.RR, error) {
-	if operation == "delete" {
-		// Delete: <name> [data]
-		if len(args) < 1 || len(args) > 2 {
-			return libdns.RR{}, fmt.Errorf("delete SRV requires 1-2 arguments: <name> [data]")
-		}
+func (p SRVRecordParser) Parse(args []string) (libdns.RR, error) {
+	if len(args) < 1 || len(args) > 7 {
+		return libdns.RR{}, fmt.Errorf("SRV record requires 1-7 arguments: <service> <protocol> <name> <priority> <weight> <port> <target> or <name> [data]")
+	}
 
-		name := args[0]
-		var data string
-
-		if len(args) == 2 {
-			data = args[1]
-		}
-
+	if len(args) == 1 {
+		// Just name - for deletion
 		return libdns.RR{
 			Type: "SRV",
-			Name: name,
-			Data: data,
+			Name: args[0],
+			Data: "",
 		}, nil
-	} else {
-		// Set/Append: <service> <protocol> <name> <priority> <weight> <port> <target>
-		if len(args) != 7 {
-			return libdns.RR{}, fmt.Errorf("%s SRV requires 7 arguments: <service> <protocol> <name> <priority> <weight> <port> <target>", operation)
-		}
-
+	} else if len(args) == 2 {
+		// Name and data - for specific deletion
+		return libdns.RR{
+			Type: "SRV",
+			Name: args[0],
+			Data: args[1],
+		}, nil
+	} else if len(args) == 7 {
+		// Full record: service, protocol, name, priority, weight, port, target
 		service := args[0]
 		protocol := args[1]
 		name := args[2]
@@ -81,15 +77,13 @@ func (p SRVRecordParser) ParseForOperation(operation string, args []string) (lib
 			Data: data,
 			TTL:  time.Duration(300) * time.Second,
 		}, nil
+	} else {
+		return libdns.RR{}, fmt.Errorf("SRV record requires either 1-2 arguments (for deletion) or 7 arguments (for creation): <service> <protocol> <name> <priority> <weight> <port> <target>")
 	}
 }
 
 func (p SRVRecordParser) GetUsage() string {
 	return "srv <service> <protocol> <name> <priority> <weight> <port> <target>"
-}
-
-func (p SRVRecordParser) GetDeleteUsage() string {
-	return "srv <name> [data]"
 }
 
 func (p SRVRecordParser) GetShortDescription() string {

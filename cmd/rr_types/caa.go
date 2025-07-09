@@ -11,32 +11,22 @@ import (
 // CAARecordParser handles CAA record parsing
 type CAARecordParser struct{}
 
-func (p CAARecordParser) ParseForOperation(operation string, args []string) (libdns.RR, error) {
-	if operation == "delete" {
-		// Delete: <name> [data]
-		if len(args) < 1 || len(args) > 2 {
-			return libdns.RR{}, fmt.Errorf("delete CAA requires 1-2 arguments: <name> [data]")
-		}
+func (p CAARecordParser) Parse(args []string) (libdns.RR, error) {
+	if len(args) < 1 || len(args) > 4 {
+		return libdns.RR{}, fmt.Errorf("CAA record requires 1-4 arguments: <name> [flags] [tag] [value] or <name> [data]")
+	}
 
-		name := args[0]
-		var data string
+	name := args[0]
+	var data string
 
-		if len(args) == 2 {
-			data = args[1]
-		}
-
-		return libdns.RR{
-			Type: "CAA",
-			Name: name,
-			Data: data,
-		}, nil
-	} else {
-		// Set/Append: <name> <flags> <tag> <value>
-		if len(args) != 4 {
-			return libdns.RR{}, fmt.Errorf("%s CAA requires 4 arguments: <name> <flags> <tag> <value>", operation)
-		}
-
-		name := args[0]
+	if len(args) == 1 {
+		// Just name - for deletion
+		data = ""
+	} else if len(args) == 2 {
+		// Name and data - for specific deletion
+		data = args[1]
+	} else if len(args) == 4 {
+		// Full record: name, flags, tag, value
 		flagsStr := args[1]
 		tag := args[2]
 		value := args[3]
@@ -53,23 +43,21 @@ func (p CAARecordParser) ParseForOperation(operation string, args []string) (lib
 		}
 
 		// Format CAA data
-		data := fmt.Sprintf(`%d %s %q`, flags, tag, value)
-
-		return libdns.RR{
-			Type: "CAA",
-			Name: name,
-			Data: data,
-			TTL:  time.Duration(300) * time.Second,
-		}, nil
+		data = fmt.Sprintf(`%d %s %q`, flags, tag, value)
+	} else {
+		return libdns.RR{}, fmt.Errorf("CAA record requires either 1-2 arguments (for deletion) or 4 arguments (for creation): <name> <flags> <tag> <value>")
 	}
+
+	return libdns.RR{
+		Type: "CAA",
+		Name: name,
+		Data: data,
+		TTL:  time.Duration(300) * time.Second,
+	}, nil
 }
 
 func (p CAARecordParser) GetUsage() string {
 	return "caa <name> <flags> <tag> <value>"
-}
-
-func (p CAARecordParser) GetDeleteUsage() string {
-	return "caa <name> [data]"
 }
 
 func (p CAARecordParser) GetShortDescription() string {

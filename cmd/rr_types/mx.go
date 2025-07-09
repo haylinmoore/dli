@@ -11,32 +11,22 @@ import (
 // MXRecordParser handles MX record parsing
 type MXRecordParser struct{}
 
-func (p MXRecordParser) ParseForOperation(operation string, args []string) (libdns.RR, error) {
-	if operation == "delete" {
-		// Delete: <name> [data]
-		if len(args) < 1 || len(args) > 2 {
-			return libdns.RR{}, fmt.Errorf("delete MX requires 1-2 arguments: <name> [data]")
-		}
+func (p MXRecordParser) Parse(args []string) (libdns.RR, error) {
+	if len(args) < 1 || len(args) > 3 {
+		return libdns.RR{}, fmt.Errorf("MX record requires 1-3 arguments: <name> [preference] [target] or <name> [data]")
+	}
 
-		name := args[0]
-		var data string
+	name := args[0]
+	var data string
 
-		if len(args) == 2 {
-			data = args[1]
-		}
-
-		return libdns.RR{
-			Type: "MX",
-			Name: name,
-			Data: data,
-		}, nil
-	} else {
-		// Set/Append: <name> <preference> <target>
-		if len(args) != 3 {
-			return libdns.RR{}, fmt.Errorf("%s MX requires 3 arguments: <name> <preference> <target>", operation)
-		}
-
-		name := args[0]
+	if len(args) == 1 {
+		// Just name - for deletion
+		data = ""
+	} else if len(args) == 2 {
+		// Name and data - for specific deletion
+		data = args[1]
+	} else if len(args) == 3 {
+		// Full record: name, preference, target
 		preferenceStr := args[1]
 		target := args[2]
 
@@ -47,23 +37,19 @@ func (p MXRecordParser) ParseForOperation(operation string, args []string) (libd
 		}
 
 		// Format MX data
-		data := fmt.Sprintf("%d %s", preference, target)
-
-		return libdns.RR{
-			Type: "MX",
-			Name: name,
-			Data: data,
-			TTL:  time.Duration(300) * time.Second,
-		}, nil
+		data = fmt.Sprintf("%d %s", preference, target)
 	}
+
+	return libdns.RR{
+		Type: "MX",
+		Name: name,
+		Data: data,
+		TTL:  time.Duration(300) * time.Second,
+	}, nil
 }
 
 func (p MXRecordParser) GetUsage() string {
 	return "mx <name> <preference> <target>"
-}
-
-func (p MXRecordParser) GetDeleteUsage() string {
-	return "mx <name> [data]"
 }
 
 func (p MXRecordParser) GetShortDescription() string {

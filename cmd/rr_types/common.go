@@ -10,15 +10,12 @@ var svcbParams []string
 
 // RecordParser defines how to parse arguments into a libdns.RR
 type RecordParser interface {
-	// ParseForOperation parses args into a libdns.RR for the given operation
-	// For delete operations, some args may be optional
-	ParseForOperation(operation string, args []string) (libdns.RR, error)
+	// Parse parses args into a libdns.RR
+	// Should handle both complete records (name + data) and partial records (name only)
+	Parse(args []string) (libdns.RR, error)
 
-	// GetUsage returns the usage string for set/append operations
+	// GetUsage returns the usage string
 	GetUsage() string
-
-	// GetDeleteUsage returns the usage string for delete operations (with optional args)
-	GetDeleteUsage() string
 
 	// GetShortDescription returns a short description
 	GetShortDescription() string
@@ -67,7 +64,7 @@ func SetupRecordCommands(parser RecordParser, parentCmds map[RecordOperation]*co
 
 	// Create delete command
 	deleteCmd := &cobra.Command{
-		Use:   parser.GetDeleteUsage(),
+		Use:   parser.GetUsage() + " (data optional for delete)",
 		Short: "Delete " + recordType,
 		Long:  "Delete " + parser.GetLongDescription() + ". If specific data is omitted, all records of this type and name will be deleted.",
 		Args:  cobra.MinimumNArgs(1), // Will be validated in parser
