@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
 	"time"
 
 	"dli/cmd/rr_types"
@@ -27,8 +25,8 @@ func executeRecordOperationFromParser(operation rr_types.RecordOperation, parser
 	// Parse the record using the parser
 	record, err := parser.ParseForOperation(string(operation), args)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		OutputError("Failed to parse record", err)
+		return
 	}
 
 	// Override TTL if set via flags

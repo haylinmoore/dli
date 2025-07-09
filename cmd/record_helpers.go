@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -68,14 +67,10 @@ func validateRecordCommand() error {
 // executeRecordOperation handles the common record operation logic
 func executeRecordOperation(operation, recordType, name, data string) {
 	if err := validateRecordCommand(); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		OutputError("Validation failed", err)
+		return
 	}
 
-	fmt.Printf("%s %s record: %s -> %s in zone %s using provider %s\n",
-		operation, recordType, name, data, zone, provider)
-
-	// Create DNS record
 	recordTTLDuration := 300
 	if recordTTL > 0 {
 		recordTTLDuration = recordTTL
@@ -88,11 +83,10 @@ func executeRecordOperation(operation, recordType, name, data string) {
 		TTL:  time.Duration(recordTTLDuration) * time.Second,
 	}
 
-	// Get provider instance
 	providerInstance, err := providers.GetProvider(provider)
 	if err != nil {
-		fmt.Printf("Error getting provider: %v\n", err)
-		os.Exit(1)
+		OutputError("Failed to get provider", err)
+		return
 	}
 
 	// Execute the operation
@@ -105,16 +99,36 @@ func executeRecordOperation(operation, recordType, name, data string) {
 	case "appending":
 		updatedRecords, err = providerInstance.AppendRecords(ctx, zone, []libdns.Record{record})
 	default:
-		fmt.Printf("Error: unknown operation %s\n", operation)
-		os.Exit(1)
+		OutputError("Unknown operation", fmt.Errorf("operation %s not supported", operation))
+		return
 	}
 
 	if err != nil {
-		fmt.Printf("Error %s record: %v\n", strings.ToLower(operation), err)
-		os.Exit(1)
+		OutputError(fmt.Sprintf("Failed to %s record", strings.ToLower(operation)), err)
+		return
 	}
 
-	fmt.Printf("Successfully %s %s record. Updated records: %+v\n", strings.ToLower(operation), recordType, updatedRecords)
+	var updatedRRs []map[string]interface{}
+	for _, record := range updatedRecords {
+		rr := record.RR()
+		updatedRRs = append(updatedRRs, map[string]interface{}{
+			"name": rr.Name,
+			"type": rr.Type,
+			"ttl":  int(rr.TTL.Seconds()),
+			"data": rr.Data,
+		})
+	}
+
+	result := map[string]interface{}{
+		"operation":       strings.ToLower(operation),
+		"record_type":     recordType,
+		"name":            name,
+		"data":            data,
+		"zone":            zone,
+		"provider":        provider,
+		"updated_records": updatedRRs,
+	}
+	OutputSuccess(fmt.Sprintf("Successfully %s %s record", strings.ToLower(operation), recordType), result)
 }
 
 // executeRecordSet handles the common record setting logic
@@ -130,23 +144,19 @@ func executeRecordAppend(recordType, name, data string) {
 // executeRecordDelete handles the common record deletion logic
 func executeRecordDelete(recordType, name, data string) {
 	if err := validateRecordCommand(); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		OutputError("Validation failed", err)
+		return
 	}
 
-	// Get provider instance
 	providerInstance, err := providers.GetProvider(provider)
 	if err != nil {
-		fmt.Printf("Error getting provider: %v\n", err)
-		os.Exit(1)
+		OutputError("Failed to get provider", err)
+		return
 	}
 
 	ctx := context.Background()
 
 	if data != "" {
-		// Delete specific record
-		fmt.Printf("Deleting %s record: %s -> %s in zone %s using provider %s\n",
-			recordType, name, data, zone, provider)
 
 		record := libdns.RR{
 			Type: recordType,
@@ -156,25 +166,37 @@ func executeRecordDelete(recordType, name, data string) {
 
 		deletedRecords, err := providerInstance.DeleteRecords(ctx, zone, []libdns.Record{record})
 		if err != nil {
-			fmt.Printf("Error deleting record: %v\n", err)
-			os.Exit(1)
+			OutputError("Failed to delete record", err)
+			return
 		}
 
-		fmt.Printf("Successfully deleted specific record. Deleted records: %d\n", len(deletedRecords))
+		var deletedRRs []map[string]interface{}
 		for _, deletedRecord := range deletedRecords {
 			rr := deletedRecord.RR()
-			fmt.Printf("Deleted: %s %s %s\n", rr.Name, rr.Type, rr.Data)
+			deletedRRs = append(deletedRRs, map[string]interface{}{
+				"name": rr.Name,
+				"type": rr.Type,
+				"ttl":  int(rr.TTL.Seconds()),
+				"data": rr.Data,
+			})
 		}
-	} else {
-		// Delete all records of this type and name - need to fetch and filter manually
-		fmt.Printf("Deleting all %s records for %s in zone %s using provider %s\n",
-			recordType, name, zone, provider)
 
-		// First, get all records to find matching ones
+		result := map[string]interface{}{
+			"operation":       "delete",
+			"record_type":     recordType,
+			"name":            name,
+			"data":            data,
+			"zone":            zone,
+			"provider":        provider,
+			"deleted_count":   len(deletedRecords),
+			"deleted_records": deletedRRs,
+		}
+		OutputSuccess("Successfully deleted specific record", result)
+	} else {
 		allRecords, err := providerInstance.GetRecords(ctx, zone)
 		if err != nil {
-			fmt.Printf("Error getting records: %v\n", err)
-			os.Exit(1)
+			OutputError("Failed to get records", err)
+			return
 		}
 
 		// Filter records matching type and name
@@ -187,21 +209,46 @@ func executeRecordDelete(recordType, name, data string) {
 		}
 
 		if len(recordsToDelete) == 0 {
-			fmt.Printf("No matching records found for %s %s\n", recordType, name)
+			result := map[string]interface{}{
+				"operation":       "delete",
+				"record_type":     recordType,
+				"name":            name,
+				"zone":            zone,
+				"provider":        provider,
+				"deleted_count":   0,
+				"deleted_records": []map[string]interface{}{},
+			}
+			OutputSuccess("No matching records found", result)
 			return
 		}
 
 		deletedRecords, err := providerInstance.DeleteRecords(ctx, zone, recordsToDelete)
 		if err != nil {
-			fmt.Printf("Error deleting records: %v\n", err)
-			os.Exit(1)
+			OutputError("Failed to delete records", err)
+			return
 		}
 
-		fmt.Printf("Successfully deleted all matching records. Deleted records: %d\n", len(deletedRecords))
+		var deletedRRs []map[string]interface{}
 		for _, deletedRecord := range deletedRecords {
 			rr := deletedRecord.RR()
-			fmt.Printf("Deleted: %s %s %s\n", rr.Name, rr.Type, rr.Data)
+			deletedRRs = append(deletedRRs, map[string]interface{}{
+				"name": rr.Name,
+				"type": rr.Type,
+				"ttl":  int(rr.TTL.Seconds()),
+				"data": rr.Data,
+			})
 		}
+
+		result := map[string]interface{}{
+			"operation":       "delete",
+			"record_type":     recordType,
+			"name":            name,
+			"zone":            zone,
+			"provider":        provider,
+			"deleted_count":   len(deletedRecords),
+			"deleted_records": deletedRRs,
+		}
+		OutputSuccess("Successfully deleted all matching records", result)
 	}
 }
 

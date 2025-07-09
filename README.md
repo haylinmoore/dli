@@ -7,15 +7,17 @@ Usage:
   dli [command]
 
 Available Commands:
-  append      Append a DNS record
-  delete      Delete a DNS record
+  append      Append DNS records
+  delete      Delete DNS records
   help        Help about any command
   list        List DNS records
   list-zones  List DNS zones
-  set         Set a DNS record
+  set         Set DNS records
 
 Flags:
+      --env string        Path to environment file (variables in file override system environment)
   -h, --help              help for dli
+      --json              Output in JSON format
       --provider string   DNS provider (e.g., bunny, cloudflare, route53)
       --zone string       DNS zone to manage
 

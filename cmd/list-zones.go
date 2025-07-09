@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"dli/providers"
 	"github.com/libdns/libdns"
@@ -15,39 +14,36 @@ var listZonesCmd = &cobra.Command{
 	Short: "List DNS zones",
 	Long:  "List all DNS zones available for the specified provider.",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Listing DNS zones for provider %s\n", provider)
-
-		// Get provider instance
 		providerInstance, err := providers.GetProvider(provider)
 		if err != nil {
-			fmt.Printf("Error getting provider: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Check if provider supports zone listing
-		zoneLister, ok := providerInstance.(libdns.ZoneLister)
-		if !ok {
-			fmt.Printf("Provider %s does not support zone listing\n", provider)
-			os.Exit(1)
-		}
-
-		// List zones
-		ctx := context.Background()
-		zones, err := zoneLister.ListZones(ctx)
-		if err != nil {
-			fmt.Printf("Error listing zones: %v\n", err)
-			os.Exit(1)
-		}
-
-		if len(zones) == 0 {
-			fmt.Printf("No zones found for provider %s\n", provider)
+			OutputError("Failed to get provider", err)
 			return
 		}
 
-		fmt.Printf("Found %d zones:\n", len(zones))
-		for _, zone := range zones {
-			fmt.Printf("- %s\n", zone.Name)
+		zoneLister, ok := providerInstance.(libdns.ZoneLister)
+		if !ok {
+			OutputError("Zone listing not supported", fmt.Errorf("provider %s does not support zone listing", provider))
+			return
 		}
+
+		ctx := context.Background()
+		zones, err := zoneLister.ListZones(ctx)
+		if err != nil {
+			OutputError("Failed to list zones", err)
+			return
+		}
+
+		var zoneList []string
+		for _, zone := range zones {
+			zoneList = append(zoneList, zone.Name)
+		}
+
+		result := map[string]interface{}{
+			"provider":   provider,
+			"zone_count": len(zones),
+			"zones":      zoneList,
+		}
+		OutputSuccess("Successfully retrieved zones", result)
 	},
 }
 

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/json"
 	"os"
 	"strings"
 
@@ -9,9 +10,10 @@ import (
 )
 
 var (
-	provider string
-	zone     string
-	envFile  string
+	provider   string
+	zone       string
+	envFile    string
+	jsonOutput bool
 )
 
 var rootCmd = &cobra.Command{
@@ -68,10 +70,46 @@ func loadEnvFromFile(filename string) {
 	}
 }
 
+func OutputJSON(data interface{}) {
+	if jsonOutput {
+		json.NewEncoder(os.Stdout).Encode(data)
+	}
+}
+
+func OutputMessage(message string, data interface{}) {
+	if jsonOutput {
+		OutputJSON(data)
+	}
+}
+
+func OutputSuccess(message string, data interface{}) {
+	if jsonOutput {
+		successData := map[string]interface{}{
+			"success": true,
+			"message": message,
+			"data":    data,
+		}
+		OutputJSON(successData)
+	}
+}
+
+func OutputError(message string, err error) {
+	if jsonOutput {
+		errorData := map[string]interface{}{
+			"error":   true,
+			"message": message,
+			"details": err.Error(),
+		}
+		OutputJSON(errorData)
+	}
+	os.Exit(1)
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&provider, "provider", "", "DNS provider (e.g., bunny, cloudflare, route53)")
 	rootCmd.PersistentFlags().StringVar(&zone, "zone", "", "DNS zone to manage")
 	rootCmd.PersistentFlags().StringVar(&envFile, "env", "", "Path to environment file (variables in file override system environment)")
+	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 	rootCmd.MarkPersistentFlagRequired("provider")
 	// Zone is not required for list-zones command
 

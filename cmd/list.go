@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"dli/providers"
 	"github.com/spf13/cobra"
@@ -15,38 +14,41 @@ var listCmd = &cobra.Command{
 	Long:  "List all DNS records in the specified zone using the specified provider.",
 	Run: func(cmd *cobra.Command, args []string) {
 		if zone == "" {
-			fmt.Printf("Error: --zone flag is required for list command\n")
-			fmt.Printf("Use 'dli list-zones' to see available zones\n")
-			os.Exit(1)
-		}
-
-		fmt.Printf("Listing DNS records in zone %s using provider %s\n", zone, provider)
-
-		// Get provider instance
-		providerInstance, err := providers.GetProvider(provider)
-		if err != nil {
-			fmt.Printf("Error getting provider: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Get all records
-		ctx := context.Background()
-		records, err := providerInstance.GetRecords(ctx, zone)
-		if err != nil {
-			fmt.Printf("Error getting records: %v\n", err)
-			os.Exit(1)
-		}
-
-		if len(records) == 0 {
-			fmt.Printf("No records found in zone %s\n", zone)
+			OutputError("Zone required", fmt.Errorf("--zone flag is required for list command"))
 			return
 		}
 
-		fmt.Printf("Found %d records:\n", len(records))
+		providerInstance, err := providers.GetProvider(provider)
+		if err != nil {
+			OutputError("Failed to get provider", err)
+			return
+		}
+
+		ctx := context.Background()
+		records, err := providerInstance.GetRecords(ctx, zone)
+		if err != nil {
+			OutputError("Failed to get records", err)
+			return
+		}
+
+		var recordList []map[string]interface{}
 		for _, record := range records {
 			rr := record.RR()
-			fmt.Printf("%-20s %-6s %-10s %s\n", rr.Name, rr.Type, rr.TTL, rr.Data)
+			recordList = append(recordList, map[string]interface{}{
+				"name": rr.Name,
+				"type": rr.Type,
+				"ttl":  int(rr.TTL.Seconds()),
+				"data": rr.Data,
+			})
 		}
+
+		result := map[string]interface{}{
+			"zone":         zone,
+			"provider":     provider,
+			"record_count": len(records),
+			"records":      recordList,
+		}
+		OutputSuccess("Successfully retrieved records", result)
 	},
 }
 
